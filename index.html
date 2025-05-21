@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Decentralized Lottery</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Decentralized Lottery</h1>
+            <div id="wallet-info">
+                <button id="connect-wallet">Connect Wallet</button>
+                <div id="account-info" class="hidden">
+                    <p>Connected: <span id="account-address"></span></p>
+                    <p>Balance: <span id="account-balance"></span> ETH</p>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section id="lottery-info" class="card">
+                <h2>Current Lottery #<span id="lottery-id">-</span></h2>
+                <div class="lottery-details">
+                    <div class="info-item">
+                        <span class="label">Time Left:</span>
+                        <span id="time-left">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Total Prize:</span>
+                        <span id="total-prize">-</span> ETH
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Participants:</span>
+                        <span id="participants-count">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Your Tickets:</span>
+                        <span id="my-tickets">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">Ticket Price:</span>
+                        <span id="ticket-price">-</span> ETH
+                    </div>
+                </div>
+            </section>
+
+            <section id="buy-tickets" class="card">
+                <h2>Buy Tickets</h2>
+                <div class="ticket-form">
+                    <div class="form-group">
+                        <label for="ticket-quantity">Number of Tickets:</label>
+                        <input type="number" id="ticket-quantity" min="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="total-cost">Total Cost:</label>
+                        <span id="total-cost">0.01</span> ETH
+                    </div>
+                    <button id="buy-button" disabled>Buy Tickets</button>
+                </div>
+            </section>
+
+            <section id="lottery-results" class="card">
+                <h2>Last Winner</h2>
+                <div id="winner-info" class="hidden">
+                    <p>Lottery #<span id="last-lottery-id">-</span></p>
+                    <p>Winner: <span id="winner-address">-</span></p>
+                    <p>Prize: <span id="winner-prize">-</span> ETH</p>
+                </div>
+                <div id="no-winner" class="showing">
+                    <p>No previous lottery results available.</p>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Decentralized Lottery - COMP4541 Project</p>
+        </footer>
+    </div>
+
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Contract ABI
+            const contractABI = [
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "lotteryId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "endTime",
+				"type": "uint256"
+			}
+		],
+		"name": "NewLotteryStarted",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "buyer",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "lotteryId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "numberOfTickets",
+				"type": "uint256"
+			}
+		],
+		"name": "TicketPurchased",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "lotteryId",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "winner",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "prize",
+				"type": "uint256"
+			}
+		],
+		"name": "WinnerSelected",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "numberOfTickets",
+				"type": "uint256"
+			}
+		],
+		"name": "buyTickets",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getCurrentLotteryInfo",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "id",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "endTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "prize",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "completed",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_lotteryId",
+				"type": "uint256"
+			}
+		],
+		"name": "getLotteryWinner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getMyTickets",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getParticipantsCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getTimeLeft",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "lotteries",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "id",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "startTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "endTime",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "winner",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "prize",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "completed",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "lotteryId",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "participants",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "selectWinner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "startNewLottery",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "ticketCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "ticketPrice",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "ticketsBought",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "newPrice",
+				"type": "uint256"
+			}
+		],
+		"name": "updateTicketPrice",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "withdrawFunds",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	}
+];
+            
+            // Ethereum provider and contract variables
+            let web3, contract, account;
+            
+            // Contract address - replace with your deployed contract address
+            const contractAddress = '0xaA5902f007b4EAA480C37fB7aC195616ECC215CF'; // Example address, replace with yours
+            
+            // Connect to wallet
+            const connectWalletBtn = document.getElementById('connect-wallet');
+            const accountInfo = document.getElementById('account-info');
+            const accountAddress = document.getElementById('account-address');
+            const accountBalance = document.getElementById('account-balance');
+            
+            // Lottery info elements
+            const lotteryId = document.getElementById('lottery-id');
+            const timeLeft = document.getElementById('time-left');
+            const totalPrize = document.getElementById('total-prize');
+            const participantsCount = document.getElementById('participants-count');
+            const myTickets = document.getElementById('my-tickets');
+            const ticketPrice = document.getElementById('ticket-price');
+            
+            // Buy ticket elements
+            const ticketQuantity = document.getElementById('ticket-quantity');
+            const totalCost = document.getElementById('total-cost');
+            const buyButton = document.getElementById('buy-button');
+            
+            // Winner info elements
+            const winnerInfo = document.getElementById('winner-info');
+            const noWinner = document.getElementById('no-winner');
+            const lastLotteryId = document.getElementById('last-lottery-id');
+            const winnerAddress = document.getElementById('winner-address');
+            const winnerPrize = document.getElementById('winner-prize');
+            
+            // Connect wallet button click handler
+            connectWalletBtn.addEventListener('click', async () => {
+                try {
+                    await connectWallet();
+                    await updateUI();
+                } catch (error) {
+                    console.error('Error connecting wallet:', error);
+                    alert('Failed to connect wallet. Make sure MetaMask is installed and unlocked.');
+                }
+            });
+            
+            // Connect to ethereum wallet (MetaMask)
+            async function connectWallet() {
+                if (window.ethereum) {
+                    try {
+                        // Request account access
+                        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                        
+                        // Initialize Web3
+                        web3 = new Web3(window.ethereum);
+                        
+                        // Get the first account
+                        account = accounts[0];
+                        
+                        // Create contract instance
+                        contract = new web3.eth.Contract(contractABI, contractAddress);
+                        
+                        // Update UI
+                        connectWalletBtn.classList.add('hidden');
+                        accountInfo.classList.remove('hidden');
+                        accountAddress.textContent = `${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
+                        
+                        // Get account balance
+                        const balance = await web3.eth.getBalance(account);
+                        accountBalance.textContent = parseFloat(web3.utils.fromWei(balance, 'ether')).toFixed(4);
+                        
+                        // Enable buy button
+                        buyButton.disabled = false;
+                        
+                        // Listen for account changes
+                        window.ethereum.on('accountsChanged', async (accounts) => {
+                            account = accounts[0];
+                            accountAddress.textContent = `${account.substring(0, 6)}...${account.substring(account.length - 4)}`;
+                            
+                            // Get account balance
+                            const balance = await web3.eth.getBalance(account);
+                            accountBalance.textContent = parseFloat(web3.utils.fromWei(balance, 'ether')).toFixed(4);
+                            
+                            await updateUI();
+                        });
+                        
+                        // Add this after initializing web3 in your connectWallet function
+                        const chainId = await web3.eth.getChainId();
+                        if (chainId !== 11155111) { // Sepolia Chain ID
+                            alert("Please connect to Sepolia testnet in your MetaMask wallet!");
+                            throw new Error("Wrong network");
+                        }
+                        
+                        return true;
+                    } catch (error) {
+                        console.error('Error connecting to wallet', error);
+                        throw error;
+                    }
+                } else {
+                    alert('MetaMask is not installed. Please install it to use this dApp: https://metamask.io/download.html');
+                    throw new Error('No ethereum provider');
+                }
+            }
+            
+            // Update UI with contract data
+            async function updateUI() {
+                if (!contract) return;
+                
+                try {
+                    // Get current lottery info
+                    const lotteryInfo = await contract.methods.getCurrentLotteryInfo().call();
+                    lotteryId.textContent = lotteryInfo.id;
+                    
+                    // Format prize
+                    const prizeInEth = web3.utils.fromWei(lotteryInfo.prize.toString(), 'ether');
+                    totalPrize.textContent = parseFloat(prizeInEth).toFixed(4);
+                    
+                    // Get time left
+                    const secondsLeft = await contract.methods.getTimeLeft().call();
+                    updateTimeLeft(secondsLeft);
+                    
+                    // Get ticket price
+                    const price = await contract.methods.ticketPrice().call();
+                    ticketPrice.textContent = web3.utils.fromWei(price, 'ether');
+                    
+                    // Get participants count
+                    const participants = await contract.methods.getParticipantsCount().call();
+                    participantsCount.textContent = participants;
+                    
+                    // Get user's tickets if connected
+                    if (account) {
+                        const tickets = await contract.methods.getMyTickets().call({ from: account });
+                        myTickets.textContent = tickets;
+                    } else {
+                        myTickets.textContent = '-';
+                    }
+                    
+                    // Check if previous lottery exists
+                    if (lotteryInfo.id > 1) {
+                        try {
+                            const prevLottery = await contract.methods.lotteries(parseInt(lotteryInfo.id) - 1).call();
+                            
+                            if (prevLottery.completed && prevLottery.winner !== '0x0000000000000000000000000000000000000000') {
+                                winnerInfo.classList.remove('hidden');
+                                noWinner.classList.add('hidden');
+                                
+                                lastLotteryId.textContent = prevLottery.id;
+                                winnerAddress.textContent = `${prevLottery.winner.substring(0, 6)}...${prevLottery.winner.substring(prevLottery.winner.length - 4)}`;
+                                winnerPrize.textContent = parseFloat(web3.utils.fromWei(prevLottery.prize, 'ether') * 0.9).toFixed(4);
+                            }
+                        } catch (e) {
+                            console.error('Error fetching previous lottery:', e);
+                        }
+                    }
+                    
+                    // Update total cost when ticket quantity changes
+                    ticketQuantity.addEventListener('input', updateTotalCost);
+                    updateTotalCost();
+                    
+                    // Set up buy button click handler
+                    buyButton.addEventListener('click', buyTickets);
+                    
+                } catch (error) {
+                    console.error('Error updating UI:', error);
+                }
+            }
+            
+            // Function to update time left display
+            function updateTimeLeft(seconds) {
+                if (seconds <= 0) {
+                    timeLeft.textContent = 'Ended (waiting for winner selection)';
+                    return;
+                }
+                
+                const days = Math.floor(seconds / (24 * 60 * 60));
+                const hours = Math.floor((seconds % (24 * 60 * 60)) / (60 * 60));
+                const minutes = Math.floor((seconds % (60 * 60)) / 60);
+                const secs = Math.floor(seconds % 60);
+                
+                timeLeft.textContent = `${days}d ${hours}h ${minutes}m ${secs}s`;
+                
+                // Update time left every second
+                setTimeout(() => updateTimeLeft(seconds - 1), 1000);
+            }
+            
+            // Function to update total cost
+            function updateTotalCost() {
+                const quantity = parseInt(ticketQuantity.value) || 0;
+                const price = parseFloat(ticketPrice.textContent) || 0;
+                totalCost.textContent = (quantity * price).toFixed(4);
+            }
+            
+            // Function to buy tickets
+            async function buyTickets() {
+                if (!contract || !account) return;
+                
+                const quantity = parseInt(ticketQuantity.value) || 0;
+                if (quantity <= 0) {
+                    alert('Please enter a valid number of tickets.');
+                    return;
+                }
+                
+                const price = await contract.methods.ticketPrice().call();
+                const totalPrice = web3.utils.toBN(price).mul(web3.utils.toBN(quantity));
+                
+                try {
+                    buyButton.disabled = true;
+                    buyButton.textContent = 'Processing...';
+                    
+                    await contract.methods.buyTickets(quantity).send({
+                        from: account,
+                        value: totalPrice.toString(),
+                        gas: 200000
+                    });
+                    
+                    alert(`Successfully purchased ${quantity} tickets!`);
+                    await updateUI();
+                } catch (error) {
+                    console.error('Error buying tickets:', error);
+                    alert('Failed to buy tickets. Please try again.');
+                } finally {
+                    buyButton.disabled = false;
+                    buyButton.textContent = 'Buy Tickets';
+                }
+            }
+            
+            // Try to connect automatically if MetaMask is already unlocked
+            if (window.ethereum && window.ethereum.selectedAddress) {
+                connectWallet().then(updateUI).catch(console.error);
+            }
+        });
+    </script>
+</body>
+</html>
