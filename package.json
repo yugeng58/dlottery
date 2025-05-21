@@ -1,11 +1,15 @@
 {
+  "homepage": "https://yugeng58.github.io/dlottery",
   "name": "dlottery",
   "version": "1.0.0",
   "description": "Decentralized Lottery DApp for COMP4541",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d .",
+    "build": "echo 'No build step required'"
   },
   "keywords": [
     "blockchain",
@@ -21,6 +25,7 @@
     "path": "^0.12.7"
   },
   "devDependencies": {
+    "gh-pages": "^6.3.0",
     "nodemon": "^2.0.22"
   }
-} 
+}
